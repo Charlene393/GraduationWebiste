@@ -1,0 +1,24 @@
+{
+  "name": "@graduaro/auth",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@graduaro/db": "workspace:*",
+    "@graduaro/env": "workspace:*",
+    "better-auth": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@graduaro/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
