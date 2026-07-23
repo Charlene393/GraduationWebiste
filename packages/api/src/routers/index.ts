@@ -29,10 +29,15 @@ export const appRouter = {
   updateRsvp: protectedProcedure
     .input(z.object({ status: z.enum(["ATTENDING", "DECLINED"]) }))
     .handler(async ({ context, input }) => {
-      const response = await prisma.rsvp.upsert({
+      const existingResponse = await prisma.rsvp.findUnique({
         where: { userId: context.session.user.id },
-        create: { userId: context.session.user.id, status: input.status },
-        update: { status: input.status },
+        select: { id: true },
+      });
+      if (existingResponse) {
+        throw new ORPCError("CONFLICT");
+      }
+      const response = await prisma.rsvp.create({
+        data: { userId: context.session.user.id, status: input.status },
         select: { status: true, updatedAt: true },
       });
       return { ...response, status: rsvpStatus(response.status) };
