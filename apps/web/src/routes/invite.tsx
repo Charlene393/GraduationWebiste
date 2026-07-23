@@ -8,6 +8,11 @@ import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/invite")({ component: InvitePage });
 
+function formatGuestName(name: string) {
+  const trimmed = name.trim();
+  return trimmed ? `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}` : "Guest";
+}
+
 function InvitePage() {
   const { data: session, isPending } = authClient.useSession();
   const recipient = (new URLSearchParams(window.location.search).get("to")?.trim() || "Guest").replace(/^dear\s+/i, "");
@@ -17,7 +22,7 @@ function InvitePage() {
   }, [isPending, recipient, session]);
 
   if (isPending || !session) return <main className="invitation-page"><p className="access-copy">Preparing your invitation…</p></main>;
-  return <InvitationCard recipient={session.user.name?.trim() || recipient} />;
+  return <InvitationCard recipient={formatGuestName(session.user.name || recipient)} />;
 }
 
 function InvitationCard({ recipient }: { recipient: string }) {
@@ -42,7 +47,7 @@ function InvitationCard({ recipient }: { recipient: string }) {
       <div><span>Venue</span><strong>To be announced</strong></div></div>
       <p className="letter-close">Your presence would make this joyous occasion even more special. I would be honoured to celebrate it with you.</p><p className="signature">Charlene Mbugua</p>
       <div className="rsvp-panel"><p>{rsvp.data?.status === "ATTENDING" ? "Attendance confirmed" : rsvp.data?.status === "DECLINED" ? "Unable to attend" : "Will you be joining us?"}</p>
-      <div><button type="button" className="rsvp-yes" disabled={updateRsvp.isPending} onClick={() => updateRsvp.mutate({ status: "ATTENDING" })}>Able to attend</button>
+      <div><button type="button" className="rsvp-yes" disabled={updateRsvp.isPending} onClick={() => updateRsvp.mutate({ status: "ATTENDING" })}>Able to</button>
       <button type="button" className="rsvp-no" disabled={updateRsvp.isPending} onClick={() => updateRsvp.mutate({ status: "DECLINED" })}>Unable to attend</button></div></div></article>
     </section>
   </main>;
