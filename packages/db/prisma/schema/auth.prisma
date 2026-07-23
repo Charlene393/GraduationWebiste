@@ -8,9 +8,26 @@ model User {
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
+  rsvp          Rsvp?
 
   @@unique([email])
   @@map("user")
+}
+
+enum RsvpStatus {
+  ATTENDING
+  DECLINED
+}
+
+model Rsvp {
+  id        String     @id @default(cuid())
+  status    RsvpStatus
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("rsvp")
 }
 
 model Session {

@@ -19,8 +19,10 @@ export function createAuth() {
     baseURL: env.BETTER_AUTH_URL,
     advanced: {
       defaultCookieAttributes: {
-        sameSite: "none",
-        secure: true,
+        // Secure cross-site cookies are required in production, but browsers
+        // reject them on the local HTTP development server.
+        sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+        secure: env.NODE_ENV === "production",
         httpOnly: true,
       },
     },

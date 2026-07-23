@@ -2,7 +2,6 @@ import { Button } from "@graduaro/ui/components/button";
 import { Input } from "@graduaro/ui/components/input";
 import { Label } from "@graduaro/ui/components/label";
 import { useForm } from "@tanstack/react-form";
-import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
 
@@ -11,9 +10,6 @@ import { authClient } from "@/lib/auth-client";
 import Loader from "./loader";
 
 export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () => void }) {
-  const navigate = useNavigate({
-    from: "/",
-  });
   const { isPending } = authClient.useSession();
 
   const form = useForm({
@@ -29,9 +25,10 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
         },
         {
           onSuccess: () => {
-            navigate({
-              to: "/dashboard",
-            });
+            const destination = value.email.toLowerCase() === "mbuguacharlene@gmail.com"
+              ? "/dashboard"
+              : `/invite${window.location.search}`;
+            window.location.assign(destination);
             toast.success("Sign in successful");
           },
           onError: (error) => {
@@ -54,7 +51,7 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
 
   return (
     <div className="mx-auto w-full mt-10 max-w-md p-6">
-      <h1 className="mb-6 text-center text-3xl font-bold">Welcome Back</h1>
+      <h1 className="mb-6 text-center text-3xl font-bold">Welcome back</h1>
 
       <form
         onSubmit={(e) => {
