@@ -36,13 +36,20 @@ function InvitationCard({ recipient }: { recipient: string }) {
   }));
   const isRsvpLocked = Boolean(rsvp.data?.status);
 
+  useEffect(() => {
+    if (rsvp.data?.status === "ATTENDING" && !isCelebrating) {
+      window.location.replace("/celebrate");
+    }
+  }, [isCelebrating, rsvp.data?.status]);
+
   const confirmAttendance = () => {
     if (isRsvpLocked) return;
+    setIsCelebrating(true);
     updateRsvp.mutate({ status: "ATTENDING" }, {
       onSuccess: () => {
-        setIsCelebrating(true);
         window.setTimeout(() => window.location.assign("/celebrate"), 4300);
       },
+      onError: () => setIsCelebrating(false),
     });
   };
 

@@ -1,37 +1,59 @@
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
+import { orpc, queryClient } from "@/utils/orpc";
 
 export const Route = createFileRoute("/celebrate")({ component: CelebratePage });
 
 const PROGRAM = [
-  ["10:00 AM", "Guests arrive"],
-  ["11:00 AM", "Graduation ceremony"],
-  ["1:00 PM", "Photos & congratulations"],
-  ["2:00 PM", "Lunch & celebration"],
+  { time: "10:00 AM", title: "Guests arrive", note: "Settle in, say hello, and get ready for the day." },
+  { time: "11:00 AM", title: "Graduation ceremony", note: "The moment we have all been waiting for." },
+  { time: "1:00 PM", title: "Photos & congratulations", note: "Bring your best smile — it is picture time." },
+  { time: "2:00 PM", title: "Lunch & celebration", note: "Good food, happy memories, and plenty of laughter." },
 ];
-
-const MENU = ["Celebration bites", "Main course", "Something sweet", "Refreshing drinks"];
 
 function CelebratePage() {
   const { data: session, isPending } = authClient.useSession();
-  const [photos, setPhotos] = useState<File[]>([]);
+  const [view, setView] = useState<"none" | "photos">("none");
+  const [activeProgram, setActiveProgram] = useState(0);
+  const photos = useQuery(orpc.celebrationPhotos.queryOptions());
+  const upload = useMutation(orpc.uploadCelebrationPhoto.mutationOptions({
+    onSuccess: (photo) => queryClient.setQueryData(orpc.celebrationPhotos.queryKey(), (current: typeof photos.data) => [photo, ...(current || [])]),
+  }));
+  const signOut = () => authClient.signOut({
+    fetchOptions: { onSuccess: () => window.location.assign("/") },
+  });
 
-  useEffect(() => {
-    if (!isPending && !session) window.location.replace("/");
-  }, [isPending, session]);
-
+  useEffect(() => { if (!isPending && !session) window.location.replace("/"); }, [isPending, session]);
   if (isPending || !session) return <main className="invitation-page"><p className="access-copy">Getting everything ready…</p></main>;
 
-  return (
-    <main className="celebrate-page">
-      <header className="celebrate-hero"><p>Charlene Mbugua · Class of 2026</p><h1>Let’s celebrate!</h1><span>Thank you for confirming — I can’t wait to share the day with you.</span></header>
-      <section className="celebrate-grid">
-        <article className="celebrate-card"><p className="card-kicker">The day</p><h2>Programme</h2><ol className="program-list">{PROGRAM.map(([time, item]) => <li key={time}><time>{time}</time><span>{item}</span></li>)}</ol></article>
-        <article className="celebrate-card"><p className="card-kicker">At the table</p><h2>Menu</h2><ul className="menu-list">{MENU.map((item) => <li key={item}>{item}</li>)}</ul><p className="menu-note">A full menu will be shared closer to the celebration.</p></article>
-      </section>
-      <section className="photo-card"><p className="card-kicker">Make a memory</p><h2>Share your photos</h2><p>Add your favourite photos from the day so we can keep the celebration together.</p><label className="photo-picker"><input type="file" accept="image/*" multiple onChange={(event) => setPhotos(Array.from(event.target.files || []))} /><span>Choose photos</span></label>{photos.length > 0 && <p className="photo-selected">{photos.length} photo{photos.length === 1 ? "" : "s"} selected — ready for upload.</p>}</section>
-    </main>
-  );
+  const selectPhotos = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    for (const file of files) {
+      if (!/image\/(jpeg|png|webp)/.test(file.type) || file.size > 2_500_000) continue;
+      const data = await readFile(file);
+      upload.mutate({ name: file.name, mimeType: file.type, data });
+    }
+    event.target.value = "";
+  };
+
+  return <main className="celebrate-page">
+    <header className="celebrate-hero"><button className="celebrate-logout" type="button" onClick={signOut}>Log out</button><p>Saturday, 15 August 2026</p><h1>Charlene’s graduation</h1><span>I’m really glad you’ll be there.</span></header>
+    <section className="celebrate-grid">
+      <article className="celebrate-card"><h2>Programme</h2><p className="program-hint">Here’s how the day will go. Tap an item for more.</p><ol className="program-list">{PROGRAM.map((event, index) => <li key={event.time}><button type="button" className={activeProgram === index ? "program-item is-active" : "program-item"} onClick={() => setActiveProgram(index)}><time>{event.time}</time><span><strong>{event.title}</strong>{activeProgram === index && <small>{event.note}</small>}</span><b>+</b></button></li>)}</ol></article>
+      <button className="photo-card action-card" type="button" onClick={() => setView("photos")}><h2>Photos from the day</h2><p>See what everyone is sharing, or add your own.</p><span className="card-link">Open photos <em>{photos.data?.length || 0}</em></span></button>
+    </section>
+    {view === "photos" && <div className="celebrate-overlay" role="dialog" aria-modal="true" aria-label="Celebration photo gallery"><section className="celebrate-modal photo-modal"><button className="modal-close" onClick={() => setView("none")} type="button">×</button><p className="card-kicker">Make a memory</p><h2>Celebration gallery</h2><label className="photo-picker"><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={selectPhotos} disabled={upload.isPending} /><span>{upload.isPending ? "Uploading…" : "Add your photos"}</span></label><p className="upload-help">JPG, PNG, or WebP · up to 2.5 MB each</p>{photos.data?.length ? <div className="photo-gallery">{photos.data.map((photo) => <figure key={photo.id}><img src={`data:${photo.mimeType};base64,${photo.data}`} alt={photo.name} /><figcaption>Shared by {photo.user.name}</figcaption></figure>)}</div> : <p className="empty-gallery">Be the first to share a photo from the celebration.</p>}</section></div>}
+  </main>;
+}
+
+function readFile(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }

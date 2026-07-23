@@ -56,6 +56,24 @@ export const appRouter = {
     });
     return responses.map((response) => ({ ...response, status: rsvpStatus(response.status) }));
   }),
+  celebrationPhotos: protectedProcedure.handler(async () => {
+    return prisma.photo.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, mimeType: true, data: true, createdAt: true, user: { select: { name: true } } },
+    });
+  }),
+  uploadCelebrationPhoto: protectedProcedure
+    .input(z.object({
+      name: z.string().min(1).max(150),
+      mimeType: z.string().regex(/^image\/(jpeg|png|webp)$/),
+      data: z.string().min(1).max(4_000_000),
+    }))
+    .handler(async ({ context, input }) => {
+      return prisma.photo.create({
+        data: { ...input, userId: context.session.user.id },
+        select: { id: true, name: true, mimeType: true, data: true, createdAt: true, user: { select: { name: true } } },
+      });
+    }),
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;

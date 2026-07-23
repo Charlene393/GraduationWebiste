@@ -9,6 +9,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   rsvp          Rsvp?
+  photos        Photo[]
 
   @@unique([email])
   @@map("user")
@@ -28,6 +29,19 @@ model Rsvp {
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("rsvp")
+}
+
+model Photo {
+  id        String   @id @default(cuid())
+  name      String
+  mimeType  String
+  data       String
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("photo")
 }
 
 model Session {
