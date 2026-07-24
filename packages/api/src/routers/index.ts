@@ -1,12 +1,19 @@
 import type { RouterClient } from "@orpc/server";
 import { ORPCError } from "@orpc/server";
 import prisma from "@graduaro/db";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
 import { protectedProcedure, publicProcedure } from "../index";
 
 function rsvpStatus(status: "ATTENDING" | "DECLINED") {
   return status === "ATTENDING" ? ("ATTENDING" as const) : ("DECLINED" as const);
+}
+
+const ORGANISER_EMAIL = "mbuguacharlene@gmail.com";
+
+function ensureOrganiser(email: string) {
+  if (email !== ORGANISER_EMAIL) throw new ORPCError("FORBIDDEN");
 }
 
 export const appRouter = {
@@ -43,27 +50,35 @@ export const appRouter = {
       return { ...response, status: rsvpStatus(response.status) };
     }),
   organiserRsvps: protectedProcedure.handler(async ({ context }) => {
-    if (context.session.user.email !== "mbuguacharlene@gmail.com") {
-      throw new ORPCError("FORBIDDEN");
-    }
-    const responses = await prisma.rsvp.findMany({
+    ensureOrganiser(context.session.user.email);
+    const [responses, privateResponses] = await Promise.all([prisma.rsvp.findMany({
       orderBy: { updatedAt: "desc" },
       select: {
         status: true,
         updatedAt: true,
         user: { select: { name: true, email: true } },
       },
-    });
-    return responses.map((response) => ({ ...response, status: rsvpStatus(response.status) }));
+    }), prisma.guest.findMany({
+      where: { rsvpStatus: { not: null } },
+      orderBy: { rsvpUpdatedAt: "desc" },
+      select: { id: true, name: true, contact: true, rsvpStatus: true, rsvpUpdatedAt: true },
+    })]);
+    return [
+      ...responses.map((response) => ({ ...response, status: rsvpStatus(response.status) })),
+      ...privateResponses.map((guest) => ({
+        status: rsvpStatus(guest.rsvpStatus!),
+        updatedAt: guest.rsvpUpdatedAt!,
+        user: { name: guest.name, email: guest.contact || "Private invitation" },
+      })),
+    ].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }),
   organiserOverview: protectedProcedure.handler(async ({ context }) => {
-    if (context.session.user.email !== "mbuguacharlene@gmail.com") {
-      throw new ORPCError("FORBIDDEN");
-    }
+    ensureOrganiser(context.session.user.email);
 
     const guestFilter = { email: { not: "mbuguacharlene@gmail.com" } };
-    const [guestCount, attending, declined, photoCount, messageCount, recentMessages] = await Promise.all([
+    const [accountGuestCount, privateGuests, attending, declined, photoCount, messageCount, recentMessages] = await Promise.all([
       prisma.user.count({ where: guestFilter }),
+      prisma.guest.findMany({ select: { rsvpStatus: true } }),
       prisma.rsvp.count({ where: { status: "ATTENDING", user: guestFilter } }),
       prisma.rsvp.count({ where: { status: "DECLINED", user: guestFilter } }),
       prisma.photo.count({ where: { user: guestFilter } }),
@@ -76,7 +91,12 @@ export const appRouter = {
       }),
     ]);
 
-    return { guestCount, attending, declined, awaiting: guestCount - attending - declined, photoCount, messageCount, recentMessages };
+    const privateAttending = privateGuests.filter((guest) => guest.rsvpStatus === "ATTENDING").length;
+    const privateDeclined = privateGuests.filter((guest) => guest.rsvpStatus === "DECLINED").length;
+    const guestCount = accountGuestCount + privateGuests.length;
+    const totalAttending = attending + privateAttending;
+    const totalDeclined = declined + privateDeclined;
+    return { guestCount, attending: totalAttending, declined: totalDeclined, awaiting: guestCount - totalAttending - totalDeclined, photoCount, messageCount, recentMessages };
   }),
   celebrationPhotos: protectedProcedure.handler(async () => {
     return prisma.photo.findMany({
@@ -97,9 +117,7 @@ export const appRouter = {
       });
     }),
   organiserPhotos: protectedProcedure.handler(async ({ context }) => {
-    if (context.session.user.email !== "mbuguacharlene@gmail.com") {
-      throw new ORPCError("FORBIDDEN");
-    }
+    ensureOrganiser(context.session.user.email);
     return prisma.photo.findMany({
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, mimeType: true, data: true, createdAt: true, user: { select: { name: true, email: true } } },
@@ -108,9 +126,7 @@ export const appRouter = {
   organiserUpdatePhoto: protectedProcedure
     .input(z.object({ id: z.string().min(1), name: z.string().trim().min(1).max(150) }))
     .handler(async ({ context, input }) => {
-      if (context.session.user.email !== "mbuguacharlene@gmail.com") {
-        throw new ORPCError("FORBIDDEN");
-      }
+      ensureOrganiser(context.session.user.email);
       return prisma.photo.update({
         where: { id: input.id },
         data: { name: input.name },
@@ -120,11 +136,54 @@ export const appRouter = {
   organiserDeletePhoto: protectedProcedure
     .input(z.object({ id: z.string().min(1) }))
     .handler(async ({ context, input }) => {
-      if (context.session.user.email !== "mbuguacharlene@gmail.com") {
-        throw new ORPCError("FORBIDDEN");
-      }
+      ensureOrganiser(context.session.user.email);
       await prisma.photo.delete({ where: { id: input.id } });
       return { id: input.id };
+    }),
+  organiserGuests: protectedProcedure.handler(async ({ context }) => {
+    ensureOrganiser(context.session.user.email);
+    return prisma.guest.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, contact: true, token: true, rsvpStatus: true, rsvpUpdatedAt: true, createdAt: true },
+    });
+  }),
+  createOrganiserGuest: protectedProcedure
+    .input(z.object({ name: z.string().trim().min(2).max(100), contact: z.string().trim().max(150).optional() }))
+    .handler(async ({ context, input }) => {
+      ensureOrganiser(context.session.user.email);
+      return prisma.guest.create({
+        data: { name: input.name, contact: input.contact || null, token: randomBytes(24).toString("base64url") },
+        select: { id: true, name: true, contact: true, token: true, rsvpStatus: true, rsvpUpdatedAt: true, createdAt: true },
+      });
+    }),
+  deleteOrganiserGuest: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .handler(async ({ context, input }) => {
+      ensureOrganiser(context.session.user.email);
+      await prisma.guest.delete({ where: { id: input.id } });
+      return { id: input.id };
+    }),
+  guestInvitation: publicProcedure
+    .input(z.object({ token: z.string().min(20).max(100) }))
+    .handler(async ({ input }) => {
+      const guest = await prisma.guest.findUnique({
+        where: { token: input.token },
+        select: { name: true, rsvpStatus: true },
+      });
+      if (!guest) throw new ORPCError("NOT_FOUND");
+      return guest;
+    }),
+  updateGuestRsvp: publicProcedure
+    .input(z.object({ token: z.string().min(20).max(100), status: z.enum(["ATTENDING", "DECLINED"]) }))
+    .handler(async ({ input }) => {
+      const guest = await prisma.guest.findUnique({ where: { token: input.token }, select: { id: true, rsvpStatus: true } });
+      if (!guest) throw new ORPCError("NOT_FOUND");
+      if (guest.rsvpStatus) throw new ORPCError("CONFLICT");
+      return prisma.guest.update({
+        where: { id: guest.id },
+        data: { rsvpStatus: input.status, rsvpUpdatedAt: new Date() },
+        select: { name: true, rsvpStatus: true },
+      });
     }),
   guestbookMessages: protectedProcedure.handler(async () => {
     return prisma.guestbookMessage.findMany({

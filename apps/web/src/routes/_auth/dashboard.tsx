@@ -17,7 +17,10 @@ function Dashboard() {
   const responses = useQuery({ ...orpc.organiserRsvps.queryOptions(), enabled: isOrganiser });
   const overview = useQuery({ ...orpc.organiserOverview.queryOptions(), enabled: isOrganiser });
   const photos = useQuery({ ...orpc.organiserPhotos.queryOptions(), enabled: isOrganiser });
+  const guests = useQuery({ ...orpc.organiserGuests.queryOptions(), enabled: isOrganiser });
   const [guestFilter, setGuestFilter] = useState<"ALL" | "ATTENDING" | "DECLINED">("ALL");
+  const [guestName, setGuestName] = useState("");
+  const [guestContact, setGuestContact] = useState("");
   const [editingPhoto, setEditingPhoto] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState("");
   const refreshPhotoData = () => {
@@ -28,6 +31,13 @@ function Dashboard() {
   const upload = useMutation(orpc.uploadCelebrationPhoto.mutationOptions({ onSuccess: refreshPhotoData }));
   const updatePhoto = useMutation(orpc.organiserUpdatePhoto.mutationOptions({ onSuccess: () => { setEditingPhoto(null); setPhotoName(""); refreshPhotoData(); } }));
   const deletePhoto = useMutation(orpc.organiserDeletePhoto.mutationOptions({ onSuccess: refreshPhotoData }));
+  const refreshGuestData = () => {
+    queryClient.invalidateQueries({ queryKey: orpc.organiserGuests.queryKey() });
+    queryClient.invalidateQueries({ queryKey: orpc.organiserRsvps.queryKey() });
+    queryClient.invalidateQueries({ queryKey: orpc.organiserOverview.queryKey() });
+  };
+  const createGuest = useMutation(orpc.createOrganiserGuest.mutationOptions({ onSuccess: () => { setGuestName(""); setGuestContact(""); refreshGuestData(); } }));
+  const deleteGuest = useMutation(orpc.deleteOrganiserGuest.mutationOptions({ onSuccess: refreshGuestData }));
 
   if (!isOrganiser) {
     return <main className="mx-auto max-w-lg p-10"><h1 className="text-2xl font-semibold">Private organiser area</h1><p className="mt-3 text-muted-foreground">This RSVP dashboard is only available to Charlene.</p></main>;
@@ -79,6 +89,16 @@ function Dashboard() {
           <article className="admin-panel admin-moments"><p className="admin-kicker">Shared moments</p><div className="moment-count"><strong>{overview.data?.photoCount ?? 0}</strong><span>photos shared</span></div><div className="moment-count"><strong>{overview.data?.messageCount ?? 0}</strong><span>guestbook messages</span></div><p className="admin-note">Photos and messages appear on the celebration page for every signed-in guest.</p></article>
           <article className="admin-panel latest-notes"><p className="admin-kicker">Latest notes</p><h2>Guestbook love</h2>{overview.data?.recentMessages.length ? <div>{overview.data.recentMessages.map((message) => <blockquote key={message.id}>“{message.message}”<footer>— {message.user.name}</footer></blockquote>)}</div> : <p className="admin-empty">Warm messages from guests will land here.</p>}</article>
         </aside>
+      </section>
+
+      <section className="admin-panel admin-invitations">
+        <div className="admin-panel-heading"><div><p className="admin-kicker">Private invitations</p><h2>Invite guests without passwords</h2><p className="admin-panel-copy">Add a name, then copy the private link into WhatsApp. Their RSVP will appear in your guest list automatically.</p></div></div>
+        <form className="guest-create-form" onSubmit={(event) => { event.preventDefault(); if (guestName.trim()) createGuest.mutate({ name: guestName.trim(), contact: guestContact.trim() || undefined }); }}>
+          <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Guest name" maxLength={100} required />
+          <input value={guestContact} onChange={(event) => setGuestContact(event.target.value)} placeholder="Phone or email (optional)" maxLength={150} />
+          <button type="submit" disabled={createGuest.isPending}>{createGuest.isPending ? "Creating…" : "Create link"}</button>
+        </form>
+        {guests.isLoading ? <p className="admin-empty">Loading private invitations…</p> : guests.data?.length ? <div className="private-guest-list">{guests.data.map((guest) => <article className="private-guest-row" key={guest.id}><div><strong>{guest.name}</strong><span>{guest.contact || "No contact saved"}</span></div><b className={guest.rsvpStatus === "ATTENDING" ? "attending" : guest.rsvpStatus === "DECLINED" ? "declined" : "waiting"}>{guest.rsvpStatus === "ATTENDING" ? "Attending" : guest.rsvpStatus === "DECLINED" ? "Unable to attend" : "Awaiting reply"}</b><div className="private-guest-actions"><button type="button" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/invite/${guest.token}`)}>Copy link</button><button type="button" className="remove-guest" disabled={deleteGuest.isPending} onClick={() => { if (window.confirm(`Remove ${guest.name}'s private invitation?`)) deleteGuest.mutate({ id: guest.id }); }}>Remove</button></div></article>)}</div> : <p className="admin-empty">No private invitations yet. Add your first guest above.</p>}
       </section>
 
       <section className="admin-panel admin-photo-panel">

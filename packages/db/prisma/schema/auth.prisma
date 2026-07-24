@@ -16,6 +16,20 @@ model User {
   @@map("user")
 }
 
+model Guest {
+  id            String      @id @default(cuid())
+  name          String
+  contact       String?
+  token         String      @unique
+  rsvpStatus    RsvpStatus?
+  rsvpUpdatedAt DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([createdAt])
+  @@map("guest")
+}
+
 enum RsvpStatus {
   ATTENDING
   DECLINED

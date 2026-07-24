@@ -18,9 +18,9 @@ function RouteComponent() {
       <div className="ambient ambient-blue" />
       <section className="auth-card">
         <p className="scene-kicker">Charlene Mbugua · Graduation 2026</p>
-        <p className="auth-intro">{showSignIn ? "Sign in to open your invitation." : isAdminSetup ? "Set up your private organiser account once, then sign in normally from then on." : "Create an account to receive your invitation."}</p>
+        <p className="auth-intro">{showSignIn ? "Private organiser sign in." : "Set up your private organiser account once, then sign in normally from then on."}</p>
         {showSignIn ? (
-          <SignInForm onSwitchToSignUp={() => setShowSignIn(false)} />
+          <SignInForm />
         ) : (
           <SignUpForm adminSetup={isAdminSetup} onSwitchToSignIn={() => setShowSignIn(true)} />
         )}
