@@ -31,9 +31,6 @@ function CelebratePage() {
   const upload = useMutation(orpc.uploadCelebrationPhoto.mutationOptions({
     onSuccess: (photo) => queryClient.setQueryData(orpc.celebrationPhotos.queryKey(), (current: typeof photos.data) => [photo, ...(current || [])]),
   }));
-  const signOut = () => authClient.signOut({
-    fetchOptions: { onSuccess: () => window.location.assign("/") },
-  });
   const signGuestbook = useMutation(orpc.signGuestbook.mutationOptions({
     onSuccess: (entry) => {
       queryClient.setQueryData(orpc.guestbookMessages.queryKey(), (current: typeof guestbook.data) => [entry, ...(current || [])]);
@@ -80,7 +77,7 @@ function CelebratePage() {
     }
   };
   return <main className="celebrate-page">
-    <header className="celebrate-hero"><button className="celebrate-logout" type="button" onClick={signOut}>Log out</button><p>Saturday, 15 August 2026</p><h1>Charlene’s graduation</h1><span>I’m really glad you’ll be there.</span><Countdown now={now} /></header>
+    <header className="celebrate-hero"><p>Saturday, 15 August 2026</p><h1>Charlene’s graduation</h1><span>I’m really glad you’ll be there.</span><Countdown now={now} /></header>
     <section className="celebrate-grid">
       <article className="celebrate-card"><h2>Programme</h2><p className="program-hint">Here’s how the day will go. Tap an item for more.</p><ol className="program-list">{PROGRAM.map((event, index) => <li key={event.time}><button type="button" className={activeProgram === index ? "program-item is-active" : "program-item"} onClick={() => setActiveProgram(index)}><time>{event.time}</time><span><strong>{event.title}</strong>{activeProgram === index && <small>{event.note}</small>}</span><b>+</b></button></li>)}</ol></article>
       <button className="photo-card action-card" type="button" onClick={() => setView("photos")}><h2>Photos from the day</h2><p>See what everyone is sharing, or add your own.</p>{photos.data?.length ? <div className="photo-preview" aria-hidden="true">{photos.data.slice(0, 3).map((photo) => <img key={photo.id} src={`data:${photo.mimeType};base64,${photo.data}`} alt="" />)}</div> : null}<span className="card-link">Open photos <em>{photos.data?.length || 0}</em></span></button>
