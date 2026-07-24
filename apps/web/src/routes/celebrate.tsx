@@ -19,10 +19,13 @@ const VENUE_COORDINATES = "-1.279838,36.629364";
 
 function CelebratePage() {
   const { data: session, isPending } = authClient.useSession();
-  const [view, setView] = useState<"none" | "photos">("none");
+  const [view, setView] = useState<"none" | "photos" | "directions">("none");
   const [activeProgram, setActiveProgram] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [guestbookText, setGuestbookText] = useState("");
+  const [guestLocation, setGuestLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationCopied, setLocationCopied] = useState(false);
   const photos = useQuery(orpc.celebrationPhotos.queryOptions());
   const guestbook = useQuery(orpc.guestbookMessages.queryOptions());
   const upload = useMutation(orpc.uploadCelebrationPhoto.mutationOptions({
@@ -51,16 +54,41 @@ function CelebratePage() {
     }
     event.target.value = "";
   };
-
+  const showDirections = () => {
+    setView("directions");
+    setIsLocating(true);
+    if (!navigator.geolocation) {
+      setIsLocating(false);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => { setGuestLocation({ lat: coords.latitude, lon: coords.longitude }); setIsLocating(false); },
+      () => setIsLocating(false),
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  };
+  const copyVenue = async () => {
+    await copyText(`Charlene's Graduation venue: ${VENUE_COORDINATES}`);
+    setLocationCopied(true);
+    window.setTimeout(() => setLocationCopied(false), 2500);
+  };
+  const shareVenue = async () => {
+    if (navigator.share) {
+      await navigator.share({ title: "Charlene's Graduation venue", text: "Here is the venue location.", url: OPEN_STREET_MAP_URL });
+    } else {
+      await copyVenue();
+    }
+  };
   return <main className="celebrate-page">
     <header className="celebrate-hero"><button className="celebrate-logout" type="button" onClick={signOut}>Log out</button><p>Saturday, 15 August 2026</p><h1>Charlene’s graduation</h1><span>I’m really glad you’ll be there.</span><Countdown now={now} /></header>
     <section className="celebrate-grid">
       <article className="celebrate-card"><h2>Programme</h2><p className="program-hint">Here’s how the day will go. Tap an item for more.</p><ol className="program-list">{PROGRAM.map((event, index) => <li key={event.time}><button type="button" className={activeProgram === index ? "program-item is-active" : "program-item"} onClick={() => setActiveProgram(index)}><time>{event.time}</time><span><strong>{event.title}</strong>{activeProgram === index && <small>{event.note}</small>}</span><b>+</b></button></li>)}</ol></article>
       <button className="photo-card action-card" type="button" onClick={() => setView("photos")}><h2>Photos from the day</h2><p>See what everyone is sharing, or add your own.</p>{photos.data?.length ? <div className="photo-preview" aria-hidden="true">{photos.data.slice(0, 3).map((photo) => <img key={photo.id} src={`data:${photo.mimeType};base64,${photo.data}`} alt="" />)}</div> : null}<span className="card-link">Open photos <em>{photos.data?.length || 0}</em></span></button>
     </section>
-    <section className="details-grid"><article className="detail-card"><h2>Getting there</h2><p>Get directions from wherever you are to the celebration venue.</p><button className="directions-link" type="button" onClick={openDirections}>Get directions</button></article><article className="detail-card graduate-note"><h2>A note from Charlene</h2><p>“Thank you for cheering me on through this chapter. Having you there will mean so much to me.”</p></article><button className="detail-card calendar-card" type="button" onClick={downloadCalendar}><h2>Add to calendar</h2><p>Save the celebration date to your calendar.</p><span>Download calendar invite</span></button></section>
+    <section className="details-grid"><article className="detail-card"><h2>Getting there</h2><p>Get directions from wherever you are to the celebration venue.</p><button className="directions-link" type="button" onClick={showDirections}>Get directions</button></article><article className="detail-card graduate-note"><h2>A note from Charlene</h2><p>“Thank you for cheering me on through this chapter. Having you there will mean so much to me.”</p></article><button className="detail-card calendar-card" type="button" onClick={downloadCalendar}><h2>Add to calendar</h2><p>Save the celebration date to your calendar.</p><span>Download calendar invite</span></button></section>
     <section className="guestbook"><div><p>Leave a little love</p><h2>Guestbook</h2></div><form onSubmit={(event) => { event.preventDefault(); if (guestbookText.trim()) signGuestbook.mutate({ message: guestbookText }); }}><textarea value={guestbookText} onChange={(event) => setGuestbookText(event.target.value)} maxLength={500} placeholder="Write Charlene a short message…" /><button type="submit" disabled={signGuestbook.isPending || guestbookText.trim().length < 2}>{signGuestbook.isPending ? "Sending…" : "Leave a message"}</button></form>{guestbook.data?.length ? <div className="guestbook-list">{guestbook.data.map((entry) => <article key={entry.id}><p>“{entry.message}”</p><span>— {entry.user.name}</span></article>)}</div> : <p className="guestbook-empty">Be the first to leave a message.</p>}</section>
     {view === "photos" && <div className="celebrate-overlay" role="dialog" aria-modal="true" aria-label="Celebration photo gallery"><section className="celebrate-modal photo-modal"><button className="modal-close" onClick={() => setView("none")} type="button">×</button><p className="card-kicker">Make a memory</p><h2>Celebration gallery</h2><label className="photo-picker"><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={selectPhotos} disabled={upload.isPending} /><span>{upload.isPending ? "Uploading…" : "Add your photos"}</span></label><p className="upload-help">JPG, PNG, or WebP · up to 2.5 MB each</p>{photos.data?.length ? <div className="photo-gallery">{photos.data.map((photo) => <figure key={photo.id}><img src={`data:${photo.mimeType};base64,${photo.data}`} alt={photo.name} /><figcaption>Shared by {photo.user.name}</figcaption></figure>)}</div> : <p className="empty-gallery">Be the first to share a photo from the celebration.</p>}</section></div>}
+    {view === "directions" && <div className="celebrate-overlay" role="dialog" aria-modal="true" aria-label="Directions to the celebration"><section className="celebrate-modal directions-modal"><button className="modal-close" onClick={() => setView("none")} type="button">×</button><h2>Find your way to the celebration</h2><p className="directions-intro">Allow location access to see where you are in relation to the venue. You can also copy or share the venue pin for Uber, Bolt, WhatsApp, or another maps app.</p><p className="directions-status">{isLocating ? "Finding your current location…" : guestLocation ? "Your location has been added to this map." : "Showing the venue location."}</p><iframe title="Celebration venue map" src={mapEmbedUrl(guestLocation)} /><div className="venue-actions"><button type="button" onClick={copyVenue}>{locationCopied ? "Venue pin copied" : "Copy venue pin"}</button><button type="button" onClick={shareVenue}>Share venue location</button></div><small className="venue-coordinates">Venue pin: {VENUE_COORDINATES}</small></section></div>}
   </main>;
 }
 
@@ -81,21 +109,27 @@ function downloadCalendar() {
   URL.revokeObjectURL(link.href);
 }
 
-function openDirections() {
-  const openVenue = () => window.open(OPEN_STREET_MAP_URL, "_blank", "noopener,noreferrer");
-  if (!navigator.geolocation) {
-    openVenue();
+function mapEmbedUrl(location: { lat: number; lon: number } | null) {
+  const [venueLat, venueLon] = VENUE_COORDINATES.split(",").map(Number);
+  const padding = location ? 0.02 : 0.004;
+  const minLon = Math.min(venueLon, location?.lon ?? venueLon) - padding;
+  const maxLon = Math.max(venueLon, location?.lon ?? venueLon) + padding;
+  const minLat = Math.min(venueLat, location?.lat ?? venueLat) - padding;
+  const maxLat = Math.max(venueLat, location?.lat ?? venueLat) + padding;
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${minLon}%2C${minLat}%2C${maxLon}%2C${maxLat}&layer=mapnik&marker=${venueLat}%2C${venueLon}`;
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
     return;
   }
-  navigator.geolocation.getCurrentPosition(
-    ({ coords }) => {
-      const route = `${coords.latitude},${coords.longitude};${VENUE_COORDINATES}`;
-      const directionsUrl = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${encodeURIComponent(route)}`;
-      window.open(directionsUrl, "_blank", "noopener,noreferrer");
-    },
-    openVenue,
-    { enableHighAccuracy: true, timeout: 10_000 },
-  );
+  const input = document.createElement("textarea");
+  input.value = text;
+  document.body.appendChild(input);
+  input.select();
+  document.execCommand("copy");
+  input.remove();
 }
 
 function readFile(file: File) {

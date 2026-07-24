@@ -9,7 +9,8 @@ export const Route = createFileRoute("/login")({
 });
 
 function RouteComponent() {
-  const [showSignIn, setShowSignIn] = useState(true);
+  const isAdminSetup = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("setup") === "admin";
+  const [showSignIn, setShowSignIn] = useState(!isAdminSetup);
 
   return (
     <main className="invitation-page auth-page">
@@ -17,11 +18,11 @@ function RouteComponent() {
       <div className="ambient ambient-blue" />
       <section className="auth-card">
         <p className="scene-kicker">Charlene Mbugua · Graduation 2026</p>
-        <p className="auth-intro">{showSignIn ? "Sign in to open your invitation." : "Create an account to receive your invitation."}</p>
+        <p className="auth-intro">{showSignIn ? "Sign in to open your invitation." : isAdminSetup ? "Set up your private organiser account once, then sign in normally from then on." : "Create an account to receive your invitation."}</p>
         {showSignIn ? (
           <SignInForm onSwitchToSignUp={() => setShowSignIn(false)} />
         ) : (
-          <SignUpForm onSwitchToSignIn={() => setShowSignIn(true)} />
+          <SignUpForm adminSetup={isAdminSetup} onSwitchToSignIn={() => setShowSignIn(true)} />
         )}
       </section>
     </main>

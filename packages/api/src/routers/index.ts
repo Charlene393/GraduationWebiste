@@ -56,6 +56,28 @@ export const appRouter = {
     });
     return responses.map((response) => ({ ...response, status: rsvpStatus(response.status) }));
   }),
+  organiserOverview: protectedProcedure.handler(async ({ context }) => {
+    if (context.session.user.email !== "mbuguacharlene@gmail.com") {
+      throw new ORPCError("FORBIDDEN");
+    }
+
+    const guestFilter = { email: { not: "mbuguacharlene@gmail.com" } };
+    const [guestCount, attending, declined, photoCount, messageCount, recentMessages] = await Promise.all([
+      prisma.user.count({ where: guestFilter }),
+      prisma.rsvp.count({ where: { status: "ATTENDING", user: guestFilter } }),
+      prisma.rsvp.count({ where: { status: "DECLINED", user: guestFilter } }),
+      prisma.photo.count({ where: { user: guestFilter } }),
+      prisma.guestbookMessage.count({ where: { user: guestFilter } }),
+      prisma.guestbookMessage.findMany({
+        where: { user: guestFilter },
+        orderBy: { createdAt: "desc" },
+        take: 3,
+        select: { id: true, message: true, createdAt: true, user: { select: { name: true } } },
+      }),
+    ]);
+
+    return { guestCount, attending, declined, awaiting: guestCount - attending - declined, photoCount, messageCount, recentMessages };
+  }),
   celebrationPhotos: protectedProcedure.handler(async () => {
     return prisma.photo.findMany({
       orderBy: { createdAt: "desc" },
@@ -73,6 +95,36 @@ export const appRouter = {
         data: { ...input, userId: context.session.user.id },
         select: { id: true, name: true, mimeType: true, data: true, createdAt: true, user: { select: { name: true } } },
       });
+    }),
+  organiserPhotos: protectedProcedure.handler(async ({ context }) => {
+    if (context.session.user.email !== "mbuguacharlene@gmail.com") {
+      throw new ORPCError("FORBIDDEN");
+    }
+    return prisma.photo.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, mimeType: true, data: true, createdAt: true, user: { select: { name: true, email: true } } },
+    });
+  }),
+  organiserUpdatePhoto: protectedProcedure
+    .input(z.object({ id: z.string().min(1), name: z.string().trim().min(1).max(150) }))
+    .handler(async ({ context, input }) => {
+      if (context.session.user.email !== "mbuguacharlene@gmail.com") {
+        throw new ORPCError("FORBIDDEN");
+      }
+      return prisma.photo.update({
+        where: { id: input.id },
+        data: { name: input.name },
+        select: { id: true, name: true, mimeType: true, data: true, createdAt: true, user: { select: { name: true, email: true } } },
+      });
+    }),
+  organiserDeletePhoto: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .handler(async ({ context, input }) => {
+      if (context.session.user.email !== "mbuguacharlene@gmail.com") {
+        throw new ORPCError("FORBIDDEN");
+      }
+      await prisma.photo.delete({ where: { id: input.id } });
+      return { id: input.id };
     }),
   guestbookMessages: protectedProcedure.handler(async () => {
     return prisma.guestbookMessage.findMany({

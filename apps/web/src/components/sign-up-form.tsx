@@ -9,12 +9,14 @@ import { authClient } from "@/lib/auth-client";
 
 import Loader from "./loader";
 
-export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () => void }) {
+const ORGANISER_EMAIL = "mbuguacharlene@gmail.com";
+
+export default function SignUpForm({ onSwitchToSignIn, adminSetup = false }: { onSwitchToSignIn: () => void; adminSetup?: boolean }) {
   const { isPending } = authClient.useSession();
 
   const form = useForm({
     defaultValues: {
-      email: "",
+      email: adminSetup ? ORGANISER_EMAIL : "",
       password: "",
       name: "",
     },
@@ -27,7 +29,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
         },
         {
           onSuccess: () => {
-            const destination = value.email.toLowerCase() === "mbuguacharlene@gmail.com"
+            const destination = value.email.toLowerCase() === ORGANISER_EMAIL
               ? "/dashboard"
               : `/invite${window.location.search}`;
             window.location.assign(destination);
@@ -54,7 +56,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
 
   return (
     <div className="mx-auto w-full mt-10 max-w-md p-6">
-      <h1 className="mb-6 text-center text-3xl font-bold">Create your account</h1>
+      <h1 className="mb-6 text-center text-3xl font-bold">{adminSetup ? "Set up organiser account" : "Create your account"}</h1>
 
       <form
         onSubmit={(e) => {
@@ -98,6 +100,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
+                  readOnly={adminSetup}
                 />
                 {field.state.meta.errors.map((error) => (
                   <p key={error?.message} className="text-red-500">
