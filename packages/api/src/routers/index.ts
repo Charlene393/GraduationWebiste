@@ -214,17 +214,6 @@ export const appRouter = {
         select: { name: true, rsvpStatus: true },
       });
     }),
-  guestCelebrationMessages: publicProcedure
-    .input(z.object({ token: z.string().min(20).max(100) }))
-    .handler(async ({ input }) => {
-      const guest = await prisma.guest.findFirst({ where: { token: input.token, rsvpStatus: "ATTENDING" }, select: { id: true } });
-      if (!guest) throw new ORPCError("FORBIDDEN");
-      return prisma.guestMessage.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 30,
-        select: { id: true, message: true, createdAt: true, guest: { select: { name: true } } },
-      });
-    }),
   signGuestCelebrationMessage: publicProcedure
     .input(z.object({ token: z.string().min(20).max(100), message: z.string().trim().min(2).max(500) }))
     .handler(async ({ input }) => {
