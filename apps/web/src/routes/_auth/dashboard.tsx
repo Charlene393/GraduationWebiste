@@ -88,8 +88,12 @@ function Dashboard() {
 
         <aside className="admin-aside">
           <article className="admin-panel admin-moments"><p className="admin-kicker">Shared moments</p><div className="moment-count"><strong>{overview.data?.photoCount ?? 0}</strong><span>photos shared</span></div><div className="moment-count"><strong>{overview.data?.messageCount ?? 0}</strong><span>guestbook messages</span></div><p className="admin-note">Photos and messages appear on the celebration page for every signed-in guest.</p></article>
-          <article className="admin-panel latest-notes"><p className="admin-kicker">Guestbook</p><h2>All notes</h2>{notes.isLoading ? <p className="admin-empty">Loading notes…</p> : notes.data?.length ? <div className="admin-note-list">{notes.data.map((message) => <blockquote key={message.id}>“{message.message}”<footer>— {message.user.name} · {formatDate(message.createdAt)}</footer></blockquote>)}</div> : <p className="admin-empty">Warm messages from guests will land here.</p>}</article>
         </aside>
+      </section>
+
+      <section className="admin-panel admin-all-notes">
+        <p className="admin-kicker">Guestbook</p><h2>All guestbook notes</h2><p className="admin-panel-copy">Only you can read these messages. Guests can send a note, but cannot view any notes.</p>
+        {notes.isLoading ? <p className="admin-empty">Loading notes…</p> : notes.data?.length ? <div className="admin-note-list">{notes.data.map((message) => <blockquote key={message.id}>“{message.message}”<footer>— {message.user.name} · {formatDate(message.createdAt)}</footer></blockquote>)}</div> : <p className="admin-empty">Warm messages from guests will land here.</p>}
       </section>
 
       <section className="admin-panel admin-invitations">
