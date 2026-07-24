@@ -76,18 +76,24 @@ export const appRouter = {
     ensureOrganiser(context.session.user.email);
 
     const guestFilter = { email: { not: "mbuguacharlene@gmail.com" } };
-    const [accountGuestCount, privateGuests, attending, declined, photoCount, messageCount, recentMessages] = await Promise.all([
+    const [accountGuestCount, privateGuests, attending, declined, photoCount, accountMessageCount, privateMessageCount, recentMessages, privateRecentMessages] = await Promise.all([
       prisma.user.count({ where: guestFilter }),
       prisma.guest.findMany({ select: { rsvpStatus: true } }),
       prisma.rsvp.count({ where: { status: "ATTENDING", user: guestFilter } }),
       prisma.rsvp.count({ where: { status: "DECLINED", user: guestFilter } }),
       prisma.photo.count({ where: { user: guestFilter } }),
       prisma.guestbookMessage.count({ where: { user: guestFilter } }),
+      prisma.guestMessage.count(),
       prisma.guestbookMessage.findMany({
         where: { user: guestFilter },
         orderBy: { createdAt: "desc" },
         take: 3,
         select: { id: true, message: true, createdAt: true, user: { select: { name: true } } },
+      }),
+      prisma.guestMessage.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 3,
+        select: { id: true, message: true, createdAt: true, guest: { select: { name: true } } },
       }),
     ]);
 
@@ -96,7 +102,11 @@ export const appRouter = {
     const guestCount = accountGuestCount + privateGuests.length;
     const totalAttending = attending + privateAttending;
     const totalDeclined = declined + privateDeclined;
-    return { guestCount, attending: totalAttending, declined: totalDeclined, awaiting: guestCount - totalAttending - totalDeclined, photoCount, messageCount, recentMessages };
+    const combinedMessages = [
+      ...recentMessages.map((message) => ({ id: message.id, message: message.message, createdAt: message.createdAt, user: message.user })),
+      ...privateRecentMessages.map((message) => ({ id: message.id, message: message.message, createdAt: message.createdAt, user: { name: message.guest.name } })),
+    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 3);
+    return { guestCount, attending: totalAttending, declined: totalDeclined, awaiting: guestCount - totalAttending - totalDeclined, photoCount, messageCount: accountMessageCount + privateMessageCount, recentMessages: combinedMessages };
   }),
   celebrationPhotos: protectedProcedure.handler(async () => {
     return prisma.photo.findMany({
@@ -183,6 +193,27 @@ export const appRouter = {
         where: { id: guest.id },
         data: { rsvpStatus: input.status, rsvpUpdatedAt: new Date() },
         select: { name: true, rsvpStatus: true },
+      });
+    }),
+  guestCelebrationMessages: publicProcedure
+    .input(z.object({ token: z.string().min(20).max(100) }))
+    .handler(async ({ input }) => {
+      const guest = await prisma.guest.findFirst({ where: { token: input.token, rsvpStatus: "ATTENDING" }, select: { id: true } });
+      if (!guest) throw new ORPCError("FORBIDDEN");
+      return prisma.guestMessage.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        select: { id: true, message: true, createdAt: true, guest: { select: { name: true } } },
+      });
+    }),
+  signGuestCelebrationMessage: publicProcedure
+    .input(z.object({ token: z.string().min(20).max(100), message: z.string().trim().min(2).max(500) }))
+    .handler(async ({ input }) => {
+      const guest = await prisma.guest.findFirst({ where: { token: input.token, rsvpStatus: "ATTENDING" }, select: { id: true } });
+      if (!guest) throw new ORPCError("FORBIDDEN");
+      return prisma.guestMessage.create({
+        data: { guestId: guest.id, message: input.message },
+        select: { id: true, message: true, createdAt: true, guest: { select: { name: true } } },
       });
     }),
   guestbookMessages: protectedProcedure.handler(async () => {

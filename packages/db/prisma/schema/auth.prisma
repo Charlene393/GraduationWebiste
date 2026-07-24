@@ -23,6 +23,7 @@ model Guest {
   token         String      @unique
   rsvpStatus    RsvpStatus?
   rsvpUpdatedAt DateTime?
+  messages      GuestMessage[]
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -68,6 +69,17 @@ model GuestbookMessage {
 
   @@index([createdAt])
   @@map("guestbook_message")
+}
+
+model GuestMessage {
+  id        String   @id @default(cuid())
+  message   String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+  guestId   String
+  guest     Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("guest_message")
 }
 
 model Session {
