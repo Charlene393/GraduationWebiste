@@ -9,9 +9,9 @@ export const Route = createFileRoute("/celebrate")({ component: CelebratePage })
 
 const PROGRAM = [
   { time: "10:00 AM", title: "Guests arrive", note: "Settle in, say hello, and get ready for the day." },
-  { time: "11:00 AM", title: "Graduation ceremony", note: "The moment we have all been waiting for." },
-  { time: "1:00 PM", title: "Photos & congratulations", note: "Bring your best smile — it is picture time." },
-  { time: "2:00 PM", title: "Lunch & celebration", note: "Good food, happy memories, and plenty of laughter." },
+  { time: "12:00 AM", title: "Graduation ceremony", note: "The moment we have all been waiting for." },
+  { time: "2:00 PM", title: "Photos & congratulations", note: "Bring your best smile — it is picture time." },
+  { time: "3:00 PM", title: "Lunch & celebration", note: "Good food, happy memories, and plenty of laughter." },
 ];
 const EVENT_START = new Date("2026-08-15T10:00:00+03:00");
 const OPEN_STREET_MAP_URL = "https://www.openstreetmap.org/?mlat=-1.279838&mlon=36.629364#map=18/-1.279838/36.629364";
