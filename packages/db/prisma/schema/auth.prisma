@@ -10,6 +10,7 @@ model User {
   accounts      Account[]
   rsvp          Rsvp?
   photos        Photo[]
+  guestbookMessages GuestbookMessage[]
 
   @@unique([email])
   @@map("user")
@@ -42,6 +43,17 @@ model Photo {
 
   @@index([createdAt])
   @@map("photo")
+}
+
+model GuestbookMessage {
+  id        String   @id @default(cuid())
+  message   String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("guestbook_message")
 }
 
 model Session {

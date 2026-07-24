@@ -74,6 +74,21 @@ export const appRouter = {
         select: { id: true, name: true, mimeType: true, data: true, createdAt: true, user: { select: { name: true } } },
       });
     }),
+  guestbookMessages: protectedProcedure.handler(async () => {
+    return prisma.guestbookMessage.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      select: { id: true, message: true, createdAt: true, user: { select: { name: true } } },
+    });
+  }),
+  signGuestbook: protectedProcedure
+    .input(z.object({ message: z.string().trim().min(2).max(500) }))
+    .handler(async ({ context, input }) => {
+      return prisma.guestbookMessage.create({
+        data: { message: input.message, userId: context.session.user.id },
+        select: { id: true, message: true, createdAt: true, user: { select: { name: true } } },
+      });
+    }),
 };
 export type AppRouter = typeof appRouter;
 export type AppRouterClient = RouterClient<typeof appRouter>;
