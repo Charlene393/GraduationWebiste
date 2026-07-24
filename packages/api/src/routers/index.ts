@@ -108,6 +108,25 @@ export const appRouter = {
     ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 3);
     return { guestCount, attending: totalAttending, declined: totalDeclined, awaiting: guestCount - totalAttending - totalDeclined, photoCount, messageCount: accountMessageCount + privateMessageCount, recentMessages: combinedMessages };
   }),
+  organiserGuestbookMessages: protectedProcedure.handler(async ({ context }) => {
+    ensureOrganiser(context.session.user.email);
+    const guestFilter = { email: { not: ORGANISER_EMAIL } };
+    const [accountMessages, privateMessages] = await Promise.all([
+      prisma.guestbookMessage.findMany({
+        where: { user: guestFilter },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, message: true, createdAt: true, user: { select: { name: true } } },
+      }),
+      prisma.guestMessage.findMany({
+        orderBy: { createdAt: "desc" },
+        select: { id: true, message: true, createdAt: true, guest: { select: { name: true } } },
+      }),
+    ]);
+    return [
+      ...accountMessages,
+      ...privateMessages.map((message) => ({ id: message.id, message: message.message, createdAt: message.createdAt, user: { name: message.guest.name } })),
+    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }),
   celebrationPhotos: protectedProcedure.handler(async () => {
     return prisma.photo.findMany({
       orderBy: { createdAt: "desc" },

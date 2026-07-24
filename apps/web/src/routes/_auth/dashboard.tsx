@@ -16,6 +16,7 @@ function Dashboard() {
   const isOrganiser = session.data?.user.email === ORGANISER_EMAIL;
   const responses = useQuery({ ...orpc.organiserRsvps.queryOptions(), enabled: isOrganiser });
   const overview = useQuery({ ...orpc.organiserOverview.queryOptions(), enabled: isOrganiser });
+  const notes = useQuery({ ...orpc.organiserGuestbookMessages.queryOptions(), enabled: isOrganiser });
   const photos = useQuery({ ...orpc.organiserPhotos.queryOptions(), enabled: isOrganiser });
   const guests = useQuery({ ...orpc.organiserGuests.queryOptions(), enabled: isOrganiser });
   const [guestFilter, setGuestFilter] = useState<"ALL" | "ATTENDING" | "DECLINED">("ALL");
@@ -87,7 +88,7 @@ function Dashboard() {
 
         <aside className="admin-aside">
           <article className="admin-panel admin-moments"><p className="admin-kicker">Shared moments</p><div className="moment-count"><strong>{overview.data?.photoCount ?? 0}</strong><span>photos shared</span></div><div className="moment-count"><strong>{overview.data?.messageCount ?? 0}</strong><span>guestbook messages</span></div><p className="admin-note">Photos and messages appear on the celebration page for every signed-in guest.</p></article>
-          <article className="admin-panel latest-notes"><p className="admin-kicker">Latest notes</p><h2>Guestbook love</h2>{overview.data?.recentMessages.length ? <div>{overview.data.recentMessages.map((message) => <blockquote key={message.id}>“{message.message}”<footer>— {message.user.name}</footer></blockquote>)}</div> : <p className="admin-empty">Warm messages from guests will land here.</p>}</article>
+          <article className="admin-panel latest-notes"><p className="admin-kicker">Guestbook</p><h2>All notes</h2>{notes.isLoading ? <p className="admin-empty">Loading notes…</p> : notes.data?.length ? <div className="admin-note-list">{notes.data.map((message) => <blockquote key={message.id}>“{message.message}”<footer>— {message.user.name} · {formatDate(message.createdAt)}</footer></blockquote>)}</div> : <p className="admin-empty">Warm messages from guests will land here.</p>}</article>
         </aside>
       </section>
 
@@ -104,7 +105,7 @@ function Dashboard() {
       <section className="admin-panel admin-photo-panel">
         <div className="admin-panel-heading"><div><p className="admin-kicker">Gallery control</p><h2>Manage photos</h2><p className="admin-panel-copy">Add your own photos, rename a file, or remove anything you do not want guests to see.</p></div><label className="admin-upload"><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={uploadPhotos} disabled={upload.isPending} /><span>{upload.isPending ? "Uploading…" : "Add photos"}</span></label></div>
         <p className="admin-upload-help">JPG, PNG, or WebP · up to 2.5 MB each</p>
-        {photos.isLoading ? <p className="admin-empty">Loading gallery…</p> : photos.data?.length ? <div className="admin-photo-grid">{photos.data.map((photo) => <article className="admin-photo" key={photo.id}><img src={`data:${photo.mimeType};base64,${photo.data}`} alt={photo.name} /><div className="admin-photo-info">{editingPhoto === photo.id ? <form onSubmit={(event) => { event.preventDefault(); if (photoName.trim()) updatePhoto.mutate({ id: photo.id, name: photoName.trim() }); }}><input value={photoName} onChange={(event) => setPhotoName(event.target.value)} maxLength={150} autoFocus /><div><button type="submit" disabled={updatePhoto.isPending}>Save</button><button type="button" onClick={() => setEditingPhoto(null)}>Cancel</button></div></form> : <><strong title={photo.name}>{photo.name}</strong><span>Shared by {photo.user.name} · {formatDate(photo.createdAt)}</span><div className="photo-admin-actions"><button type="button" onClick={() => { setEditingPhoto(photo.id); setPhotoName(photo.name); }}>Rename</button><button type="button" className="delete-photo" disabled={deletePhoto.isPending} onClick={() => { if (window.confirm(`Remove ${photo.name} from the celebration gallery?`)) deletePhoto.mutate({ id: photo.id }); }}>Remove</button></div></>}</div></article>)}</div> : <p className="admin-empty">No photos yet. Add the first one here, or wait for guests to share theirs.</p>}
+        {photos.isLoading ? <p className="admin-empty">Loading gallery…</p> : photos.data?.length ? <div className="admin-photo-grid">{photos.data.map((photo) => <article className="admin-photo" key={photo.id}><img src={`data:${photo.mimeType};base64,${photo.data}`} alt={photo.name} /><div className="admin-photo-info">{editingPhoto === photo.id ? <form onSubmit={(event) => { event.preventDefault(); if (photoName.trim()) updatePhoto.mutate({ id: photo.id, name: photoName.trim() }); }}><input value={photoName} onChange={(event) => setPhotoName(event.target.value)} maxLength={150} autoFocus /><div><button type="submit" disabled={updatePhoto.isPending}>Save</button><button type="button" onClick={() => setEditingPhoto(null)}>Cancel</button></div></form> : <><strong title={photo.name}>{photo.name}</strong><span>Shared by {photo.user.name} · {formatDate(photo.createdAt)}</span><div className="photo-admin-actions"><button type="button" onClick={() => { setEditingPhoto(photo.id); setPhotoName(photo.name); }}>Rename</button><button type="button" onClick={() => downloadPhoto(photo)}>Download</button><button type="button" className="delete-photo" disabled={deletePhoto.isPending} onClick={() => { if (window.confirm(`Remove ${photo.name} from the celebration gallery?`)) deletePhoto.mutate({ id: photo.id }); }}>Remove</button></div></>}</div></article>)}</div> : <p className="admin-empty">No photos yet. Add the first one here, or wait for guests to share theirs.</p>}
       </section>
     </main>
   );
@@ -125,4 +126,15 @@ function readFile(file: File) {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+function downloadPhoto(photo: { name: string; mimeType: string; data: string }) {
+  const binary = atob(photo.data);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: photo.mimeType }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = photo.name;
+  link.click();
+  URL.revokeObjectURL(url);
 }
